@@ -1,42 +1,44 @@
 ﻿# qBittorrent - FitGirl Repacks Search Plugin
 
-Plugin de búsqueda para el cliente BitTorrent qBittorrent que permite indexar y consultar las publicaciones del sitio fitgirl-repacks.site.
+*Read this in other languages: [English](README.md), [Español](README.es.md)*
 
-## Características
+Search plugin for the qBittorrent BitTorrent client to query and index game releases from fitgirl-repacks.site.
 
-- Búsqueda concurrente mediante hilos para optimizar tiempos de respuesta.
-- Extracción de enlaces magnet y archivos torrent.
-- Detección de tamaño de descarga y fechas de publicación.
-- Filtrado automático de entradas no relacionadas con lanzamientos de juegos.
+## Features
 
-## Instalación
+- Multi-threaded concurrent requests for optimized response times.
+- Direct extraction of magnet URIs and torrent files.
+- Accurate detection of repack download sizes and publication timestamps.
+- Automatic filtering of non-game digest and administrative posts.
 
-### Método 1: Instalación directa mediante URL
+## Installation
 
-1. En qBittorrent, acceda a la pestaña **Buscador** (*Search*).
-2. Haga clic en **Extensiones de búsqueda...** (*Search plugins...*).
-3. Seleccione **Instalar uno nuevo** (*Install a new one*).
-4. Elija la opción **Enlace web** (*Web link*) e introduzca la siguiente URL:
+### Method 1: Direct Installation via URL (Recommended)
+
+1. Open **qBittorrent** and navigate to the **Search** tab.
+2. Click the **Search plugins...** button in the lower right corner.
+3. Click **Install a new one**.
+4. Select **Web link** and paste the following URL:
    ```text
    https://raw.githubusercontent.com/afalvarezsite/qbtFitGirl-search/main/fitgirl_repacks.py
    ```
-5. Confirme para finalizar la instalación.
+5. Click **OK** to complete the installation.
 
-### Método 2: Instalación manual
+### Method 2: Manual Installation
 
-1. Descargue el archivo `fitgirl_repacks.py` de este repositorio.
-2. En qBittorrent, diríjase a **Buscador** > **Extensiones de búsqueda...** > **Instalar uno nuevo**.
-3. Seleccione **Archivo local** (*Local file*) y cargue el archivo descargado.
+1. Download the `fitgirl_repacks.py` file from this repository.
+2. In qBittorrent, go to **Search** > **Search plugins...** > **Install a new one**.
+3. Select **Local file** and choose the downloaded `fitgirl_repacks.py` file.
 
-## Requisitos
+## Requirements
 
-- qBittorrent v4.x o superior.
-- Entorno de ejecución Python 3 configurado en el sistema.
+- qBittorrent v4.x or later.
+- Python 3 runtime environment configured on the system.
 
-## Licencia
+## License
 
-Este proyecto está distribuido bajo los términos de la licencia GNU General Public License v3.0 (GPLv3). Consulte el archivo LICENSE para más información.
+This project is licensed under the terms of the GNU General Public License v3.0 (GPLv3). See the [LICENSE](LICENSE) file for details.
 
-## Descargo de responsabilidad
+## Disclaimer
 
-Este software se proporciona únicamente con fines informativos y de interoperabilidad técnica. El proyecto no aloja contenido protegido por derechos de autor ni mantiene relación directa con el sitio indexado.
+This software is provided for informational and technical interoperability purposes only. The project does not host any copyrighted material nor is it affiliated with the indexed website.
