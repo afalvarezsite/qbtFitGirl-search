@@ -1,5 +1,5 @@
-# VERSION: 1.0
-# AUTHORS: Spidy
+# VERSION: 1.1
+# AUTHORS: Spidy, afalvarezsite
 import concurrent.futures
 import re
 import urllib.parse
@@ -24,6 +24,32 @@ class fitgirl_repacks(object):
     url = 'https://fitgirl-repacks.site/'
     name = 'FitGirl Repacks'
     supported_categories = {'all': ''}
+
+    # High-speed public & 1337x trackers injected into all magnet links
+    DEFAULT_TRACKERS = [
+        'udp://tracker.opentrackr.org:1337/announce',
+        'http://tracker.opentrackr.org:1337/announce',
+        'udp://open.stealth.si:80/announce',
+        'udp://tracker.torrent.eu.org:451/announce',
+        'udp://tracker.theoks.net:6969/announce',
+        'udp://tracker.ccp.ovh:6969/announce',
+        'udp://opentor.net:6969',
+        'udp://opentracker.i2p.rocks:6969/announce',
+        'udp://tracker.openbittorrent.com:6969/announce',
+        'udp://tracker.openbittorrent.com:80/announce',
+        'http://tracker.openbittorrent.com:80/announce',
+        'udp://exodus.desync.com:6969/announce',
+        'https://tracker.tamersunion.org:443/announce',
+        'udp://explodie.org:6969/announce',
+        'udp://bt1.archive.org:6969/announce',
+        'udp://bt2.archive.org:6969/announce',
+        'udp://tracker.filemail.com:6969/announce',
+        'udp://tracker1.bt.moack.co.kr:80/announce',
+        'udp://tracker.internetwarriors.net:1337/announce',
+        'udp://tracker.leechers-paradise.org:6969/announce',
+        'udp://coppersurfer.tk:6969/announce',
+        'udp://tracker.zer0day.to:1337/announce'
+    ]
 
     headers = {
         'User-Agent': (
@@ -106,6 +132,24 @@ class fitgirl_repacks(object):
                 pass
         return -1
 
+    def _enrich_magnet(self, magnet_link):
+        """Append high-speed trackers to magnet links if not already present."""
+        if not magnet_link or not magnet_link.startswith('magnet:'):
+            return magnet_link
+        
+        # Collect existing trackers
+        existing = set(re.findall(r'tr=([^&]+)', magnet_link))
+        extra_trs = []
+        for tr in self.DEFAULT_TRACKERS:
+            encoded_tr = urllib.parse.quote(tr, safe='')
+            if encoded_tr not in existing and tr not in existing:
+                extra_trs.append(f"tr={encoded_tr}")
+        
+        if extra_trs:
+            delimiter = '&' if '?' in magnet_link else '?'
+            return f"{magnet_link}{delimiter}{'&'.join(extra_trs)}"
+        return magnet_link
+
     def _extract_article_data(self, article_html, raw_query):
         """Parse individual article HTML and return the formatted result dict or None."""
         # 1. Skip non-game digest categories
@@ -160,7 +204,7 @@ class fitgirl_repacks(object):
             return None
 
         return {
-            'link': download_link,
+            'link': self._enrich_magnet(download_link),
             'name': self._ensure_query_in_title(title, raw_query),
             'size': self._format_size_to_bytes(size),
             'seeds': '-1',
