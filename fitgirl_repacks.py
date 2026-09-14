@@ -1,4 +1,4 @@
-# VERSION: 1.1
+# VERSION: 1.2
 # AUTHORS: Spidy, afalvarezsite
 import concurrent.futures
 import re
@@ -6,11 +6,6 @@ import urllib.parse
 import urllib.request
 from datetime import datetime
 from html import unescape
-
-try:
-    from helpers import retrieve_url
-except ImportError:
-    retrieve_url = None
 
 try:
     from novaprinter import prettyPrinter, anySizeToBytes
@@ -28,27 +23,13 @@ class fitgirl_repacks(object):
     # High-speed public & 1337x trackers injected into all magnet links
     DEFAULT_TRACKERS = [
         'udp://tracker.opentrackr.org:1337/announce',
-        'http://tracker.opentrackr.org:1337/announce',
         'udp://open.stealth.si:80/announce',
         'udp://tracker.torrent.eu.org:451/announce',
         'udp://tracker.theoks.net:6969/announce',
-        'udp://tracker.ccp.ovh:6969/announce',
-        'udp://opentor.net:6969',
-        'udp://opentracker.i2p.rocks:6969/announce',
         'udp://tracker.openbittorrent.com:6969/announce',
-        'udp://tracker.openbittorrent.com:80/announce',
-        'http://tracker.openbittorrent.com:80/announce',
         'udp://exodus.desync.com:6969/announce',
-        'https://tracker.tamersunion.org:443/announce',
         'udp://explodie.org:6969/announce',
-        'udp://bt1.archive.org:6969/announce',
-        'udp://bt2.archive.org:6969/announce',
-        'udp://tracker.filemail.com:6969/announce',
-        'udp://tracker1.bt.moack.co.kr:80/announce',
-        'udp://tracker.internetwarriors.net:1337/announce',
-        'udp://tracker.leechers-paradise.org:6969/announce',
-        'udp://coppersurfer.tk:6969/announce',
-        'udp://tracker.zer0day.to:1337/announce'
+        'udp://open.tracker.cl:1337/announce'
     ]
 
     headers = {
@@ -60,14 +41,14 @@ class fitgirl_repacks(object):
     }
 
     # Pre-compiled regular expressions
-    _re_pages = re.compile(r'page-numbers[^"]*"[^\n>]*>(\d+)</a>')
-    _re_articles = re.compile(r'<article id="post-\d+".*?</article>', re.DOTALL)
-    _re_title = re.compile(r'<h1 class="entry-title"><a href="([^"]+)"[^>]*>(.*?)</a></h1>')
+    _re_pages = re.compile(r'class="[^"]*page-numbers[^"]*"[^>]*>(\d+)</a>', re.IGNORECASE)
+    _re_articles = re.compile(r'<article\b[^>]*>(.*?)</article>', re.DOTALL | re.IGNORECASE)
+    _re_title = re.compile(r'<h1\b[^>]*class="[^"]*entry-title[^"]*"[^>]*>\s*(?:<a\b[^>]*href="([^"]+)"[^>]*>)?(.*?)(?:</a>)?\s*</h1>', re.DOTALL | re.IGNORECASE)
     _re_tags = re.compile(r'<[^>]+>')
-    _re_category = re.compile(r'rel="category tag">(.*?)</a>')
-    _re_date = re.compile(r'<time class="entry-date[^"]*" datetime="([^"]+)"')
-    _re_magnet = re.compile(r'href="(magnet:\?[^"]+)"')
-    _re_torrent_url = re.compile(r'href="([^"]+?\.(?:torrent))"')
+    _re_category = re.compile(r'rel="[^"]*category tag[^"]*"[^>]*>(.*?)</a>', re.IGNORECASE)
+    _re_date = re.compile(r'<time\b[^>]*class="[^"]*entry-date[^"]*"[^>]*datetime="([^"]+)"', re.IGNORECASE)
+    _re_magnet = re.compile(r'href="(magnet:\?[^"]+)"', re.IGNORECASE)
+    _re_torrent_url = re.compile(r'href="([^"]+?\.(?:torrent))"', re.IGNORECASE)
     _re_size = re.compile(r'Repack Size[^\d]*?(?:from\s*)?(\d+(?:\.\d+)?\s*(?:TB|GB|MB|KB))', re.IGNORECASE)
     _re_clean_alpha = re.compile(r'[^a-zA-Z0-9]')
     _re_size_units = re.compile(r'([\d\.]+)\s*(TB|GB|MB|KB|B)', re.IGNORECASE)
@@ -80,21 +61,15 @@ class fitgirl_repacks(object):
         return str(data) if data is not None else ""
 
     def _fetch(self, target_url, timeout=8):
-        """Fetch URL content using qBittorrent helper or urllib fallback."""
-        if retrieve_url:
-            try:
-                res = retrieve_url(target_url)
-                if res:
-                    return self._safe_decode(res)
-            except Exception:
-                pass
-
+        """Fetch URL content using urllib, returning (html_content, final_url)."""
         try:
             req = urllib.request.Request(target_url, headers=self.headers)
             with urllib.request.urlopen(req, timeout=timeout) as resp:
-                return self._safe_decode(resp.read())
+                final_url = resp.geturl()
+                html_content = self._safe_decode(resp.read())
+                return html_content, final_url
         except Exception:
-            return ""
+            return "", target_url
 
     def _format_size_to_bytes(self, size_str):
         """Convert human-readable file size strings to byte count."""
@@ -150,7 +125,7 @@ class fitgirl_repacks(object):
             return f"{magnet_link}{delimiter}{'&'.join(extra_trs)}"
         return magnet_link
 
-    def _extract_article_data(self, article_html, raw_query):
+    def _extract_article_data(self, article_html, raw_query, fallback_url=None):
         """Parse individual article HTML and return the formatted result dict or None."""
         # 1. Skip non-game digest categories
         categories = self._re_category.findall(article_html)
@@ -162,7 +137,7 @@ class fitgirl_repacks(object):
         if not title_match:
             return None
 
-        desc_link = title_match.group(1)
+        desc_link = title_match.group(1) or fallback_url or ""
         raw_title = title_match.group(2)
         title = unescape(self._re_tags.sub('', raw_title)).strip()
 
@@ -184,8 +159,8 @@ class fitgirl_repacks(object):
         mag_match = self._re_magnet.search(article_html)
         if mag_match:
             download_link = unescape(mag_match.group(1))
-        else:
-            page_html = self._fetch(desc_link, timeout=6)
+        elif desc_link:
+            page_html, _ = self._fetch(desc_link, timeout=6)
             if page_html:
                 pmag = self._re_magnet.search(page_html)
                 if pmag:
@@ -230,7 +205,7 @@ class fitgirl_repacks(object):
             else:
                 search_url = f"{self.url}page/{page}/?s={urllib.parse.quote(raw_query)}"
 
-            html = self._fetch(search_url, timeout=8)
+            html, final_url = self._fetch(search_url, timeout=8)
             if not html:
                 break
 
@@ -240,6 +215,27 @@ class fitgirl_repacks(object):
                 total_pages = max(int(p) for p in pages_found)
 
             articles = self._re_articles.findall(html)
+
+            # Handle direct WordPress redirect to a single post (e.g., exact match)
+            if "?s=" not in final_url:
+                if articles:
+                    for art in articles:
+                        res = self._extract_article_data(art, raw_query, fallback_url=final_url)
+                        if res and res['desc_link'] not in seen_links:
+                            if not res['desc_link']:
+                                res['desc_link'] = final_url
+                            seen_links.add(res['desc_link'])
+                            prettyPrinter(res)
+                            total_results += 1
+                else:
+                    res = self._extract_article_data(html, raw_query, fallback_url=final_url)
+                    if res and res['desc_link'] not in seen_links:
+                        res['desc_link'] = final_url
+                        seen_links.add(final_url)
+                        prettyPrinter(res)
+                        total_results += 1
+                break
+
             if not articles:
                 break
 
