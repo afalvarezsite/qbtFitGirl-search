@@ -4,6 +4,8 @@
 
 Search plugin for the qBittorrent BitTorrent client to query and index game releases from fitgirl-repacks.site.
 
+[![GitHub Stars](https://img.shields.io/github/stars/afalvarezsite/qbtFitGirl-search?style=for-the-badge\&logo=github\&label=Stars)](https://github.com/afalvarezsite/qbtFitGirl-search/stargazers) [![Python](https://img.shields.io/badge/Python-3.x-3776AB?style=for-the-badge\&logo=python\&logoColor=white)](https://www.python.org/) [![qBittorrent](https://img.shields.io/badge/qBittorrent-4.x%2B-2F67BA?style=for-the-badge\&logo=qbittorrent\&logoColor=white)](https://www.qbittorrent.org/)
+
 ## Features
 
 - Multi-threaded concurrent requests for optimized response times.
