@@ -48,6 +48,7 @@ class fitgirl_repacks(object):
     _re_category = re.compile(r'rel="[^"]*category tag[^"]*"[^>]*>(.*?)</a>', re.IGNORECASE)
     _re_date = re.compile(r'<time\b[^>]*class="[^"]*entry-date[^"]*"[^>]*datetime="([^"]+)"', re.IGNORECASE)
     _re_magnet = re.compile(r'href="(magnet:\?[^"]+)"', re.IGNORECASE)
+    _re_hash = re.compile(r'(?:torrage\.info/torrent\.php\?h=|itorrents\.org/torrent/|btcache\.me/torrent/|torrent/|infohash=|\bbtih:)([a-fA-F0-9]{40}|[a-zA-Z2-7]{32})', re.IGNORECASE)
     _re_torrent_url = re.compile(r'href="([^"]+?\.(?:torrent))"', re.IGNORECASE)
     _re_size = re.compile(r'Repack Size[^\d]*?(?:from\s*)?(\d+(?:\.\d+)?\s*(?:TB|GB|MB|KB))', re.IGNORECASE)
     _re_clean_alpha = re.compile(r'[^a-zA-Z0-9]')
@@ -154,21 +155,31 @@ class fitgirl_repacks(object):
         if size_match:
             size = size_match.group(1)
 
-        # 5. Extract download link (magnet URI or fallback .torrent link)
+        # 5. Extract download link (magnet URI, infohash, or fallback .torrent link)
         download_link = None
         mag_match = self._re_magnet.search(article_html)
         if mag_match:
             download_link = unescape(mag_match.group(1))
-        elif desc_link:
+        else:
+            hash_match = self._re_hash.search(article_html)
+            if hash_match:
+                download_link = f"magnet:?xt=urn:btih:{hash_match.group(1)}&dn={urllib.parse.quote(title)}"
+
+        # If not found in snippet and post URL is available, fetch full post page
+        if not download_link and desc_link:
             page_html, _ = self._fetch(desc_link, timeout=6)
             if page_html:
                 pmag = self._re_magnet.search(page_html)
                 if pmag:
                     download_link = unescape(pmag.group(1))
                 else:
-                    ptorrent = self._re_torrent_url.search(page_html)
-                    if ptorrent:
-                        download_link = ptorrent.group(1)
+                    phash = self._re_hash.search(page_html)
+                    if phash:
+                        download_link = f"magnet:?xt=urn:btih:{phash.group(1)}&dn={urllib.parse.quote(title)}"
+                    else:
+                        ptorrent = self._re_torrent_url.search(page_html)
+                        if ptorrent:
+                            download_link = ptorrent.group(1)
 
                 if size == "-1":
                     psize = self._re_size.search(page_html)
@@ -194,65 +205,67 @@ class fitgirl_repacks(object):
         seen_links = set()
         total_results = 0
         max_results_limit = 30
-        max_pages_limit = 5
+        max_pages_limit = 3
 
         page = 1
         total_pages = 1
 
-        while page <= total_pages and page <= max_pages_limit and total_results < max_results_limit:
-            if page == 1:
-                search_url = f"{self.url}?s={urllib.parse.quote(raw_query)}"
-            else:
-                search_url = f"{self.url}page/{page}/?s={urllib.parse.quote(raw_query)}"
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+            while page <= total_pages and page <= max_pages_limit and total_results < max_results_limit:
+                if page == 1:
+                    search_url = f"{self.url}?s={urllib.parse.quote(raw_query)}"
+                else:
+                    search_url = f"{self.url}page/{page}/?s={urllib.parse.quote(raw_query)}"
 
-            html, final_url = self._fetch(search_url, timeout=8)
-            if not html:
-                break
+                html, final_url = self._fetch(search_url, timeout=8)
+                if not html:
+                    break
 
-            # Detect total page count from pagination
-            pages_found = self._re_pages.findall(html)
-            if pages_found:
-                total_pages = max(int(p) for p in pages_found)
-
-            articles = self._re_articles.findall(html)
-
-            # Handle direct WordPress redirect to a single post (e.g., exact match)
-            if "?s=" not in final_url:
-                if articles:
-                    for art in articles:
-                        res = self._extract_article_data(art, raw_query, fallback_url=final_url)
+                # Handle direct WordPress redirect to a single post (e.g., exact match)
+                if "?s=" not in final_url:
+                    if articles:
+                        for art in articles:
+                            res = self._extract_article_data(art, raw_query, fallback_url=final_url)
+                            if res and res['desc_link'] not in seen_links:
+                                if not res['desc_link']:
+                                    res['desc_link'] = final_url
+                                seen_links.add(res['desc_link'])
+                                prettyPrinter(res)
+                                total_results += 1
+                    else:
+                        res = self._extract_article_data(html, raw_query, fallback_url=final_url)
                         if res and res['desc_link'] not in seen_links:
-                            if not res['desc_link']:
-                                res['desc_link'] = final_url
-                            seen_links.add(res['desc_link'])
+                            res['desc_link'] = final_url
+                            seen_links.add(final_url)
                             prettyPrinter(res)
                             total_results += 1
-                else:
-                    res = self._extract_article_data(html, raw_query, fallback_url=final_url)
-                    if res and res['desc_link'] not in seen_links:
-                        res['desc_link'] = final_url
-                        seen_links.add(final_url)
-                        prettyPrinter(res)
-                        total_results += 1
-                break
+                    break
 
-            if not articles:
-                break
+                pages_found = self._re_pages.findall(html)
+                if pages_found:
+                    total_pages = max(int(p) for p in pages_found)
 
-            # Process articles in parallel per page to speed up detail fetches
-            with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
+                articles = self._re_articles.findall(html)
+                if not articles:
+                    break
+
+                # Concurrent dispatch of parsing/fetches for current page
                 futures = [
                     executor.submit(self._extract_article_data, art, raw_query)
                     for art in articles
                 ]
-                for future in futures:
+
+                # Stream results immediately as each worker finishes
+                for future in concurrent.futures.as_completed(futures):
                     try:
                         res = future.result()
                         if res and res['desc_link'] not in seen_links:
                             seen_links.add(res['desc_link'])
                             prettyPrinter(res)
                             total_results += 1
+                            if total_results >= max_results_limit:
+                                break
                     except Exception:
                         pass
 
-            page += 1
+                page += 1
