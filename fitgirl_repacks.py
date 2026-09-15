@@ -1,4 +1,4 @@
-# VERSION: 3.2
+# VERSION: 3.3
 # AUTHORS: Spidy, afalvarezsite
 # Refactored qBittorrent search plugin for FitGirl Repacks.
 #
@@ -361,6 +361,7 @@ class _DocumentParser(HTMLParser):
 
 def clean_text(value):
     value = unescape(value or '')
+    value = value.replace('|', '-')
     value = re.sub(r'\s+', ' ', value)
     return value.strip()
 
@@ -887,7 +888,7 @@ class Deduplicator(object):
 class fitgirl_repacks(object):
     url = 'https://fitgirl-repacks.site/'
     name = 'FitGirl Repacks'
-    supported_categories = {'all': ''}
+    supported_categories = {'all': '', 'games': ''}
 
     DEFAULT_TRACKERS = (
         'udp://tracker.opentrackr.org:1337/announce',
